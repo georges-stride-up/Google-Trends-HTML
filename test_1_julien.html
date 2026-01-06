@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Supprime les marges et force le widget à prendre toute la place */
+        body, html { 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            width: 100%; 
+            font-family: Roboto, Arial, sans-serif;
+        }
+        /* Style optionnel pour s'assurer que le widget respire */
+        #widget-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="widget-container">
+        <script type="text/javascript" src="https://ssl.gstatic.com/trends_nrtr/4284_RC01/embed_loader.js"></script>
+        <script type="text/javascript">
+            trends.embed.renderExploreWidget(
+                "TIMESERIES", 
+                {
+                    "comparisonItem": [{"keyword": "poêle", "geo": "FR", "time": "today 5-y"}],
+                    "category": 0,
+                    "property": ""
+                }, 
+                {
+                    "exploreQuery": "date=today%205-y&geo=FR&q=po%C3%AAle&hl=fr",
+                    "guestPath": "https://trends.google.fr:443/trends/embed/"
+                }
+            );
+        </script>
+    </div>
+
+</body>
+</html>
