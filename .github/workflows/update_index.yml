@@ -3,7 +3,7 @@ name: Update Library Index
 on:
   push:
     paths:
-      - '*.html' # Se déclenche quand un fichier HTML est ajouté
+      - '*.html'
     branches:
       - main
 
@@ -20,7 +20,6 @@ jobs:
           echo "<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/water.css@2/out/water.css'>" >> index.html
           echo "</head><body><h1>📊 Bibliothèque Trends</h1><ul>" >> index.html
           
-          # Boucle pour lister les fichiers sauf admin et index
           for f in *.html; do
             if [ "$f" != "index.html" ] && [ "$f" != "admin.html" ]; then
               name=$(echo $f | sed 's/-/ /g' | sed 's/.html//g')
@@ -30,7 +29,7 @@ jobs:
           
           echo "</ul><hr><a href='admin.html'>➕ Ajouter un trend</a></body></html>" >> index.html
 
-     - name: Commit changes
+      - name: Commit changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
