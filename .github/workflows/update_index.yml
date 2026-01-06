@@ -1,0 +1,39 @@
+name: Update Library Index
+
+on:
+  push:
+    paths:
+      - '*.html' # Se déclenche quand un fichier HTML est ajouté
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Generate Index
+        run: |
+          echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Bibliothèque Trends</title>" > index.html
+          echo "<link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/water.css@2/out/water.css'>" >> index.html
+          echo "</head><body><h1>📊 Bibliothèque Trends</h1><ul>" >> index.html
+          
+          # Boucle pour lister les fichiers sauf admin et index
+          for f in *.html; do
+            if [ "$f" != "index.html" ] && [ "$f" != "admin.html" ]; then
+              name=$(echo $f | sed 's/-/ /g' | sed 's/.html//g')
+              echo "<li><a href='$f'>🔍 ${name^}</a></li>" >> index.html
+            fi
+          done
+          
+          echo "</ul><hr><a href='admin.html'>➕ Ajouter un trend</a></body></html>" >> index.html
+
+      - name: Commit changes
+        run: |
+          git config --global user.name 'Trends Bot'
+          git config --global user.email 'bot@trends.com'
+          git add index.html
+          git commit -m "Auto-update index" || echo "No changes to commit"
+          git push
