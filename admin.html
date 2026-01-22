@@ -1,118 +1,171 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Admin Trends Generator</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <style>
-        #status { margin-top: 20px; padding: 10px; border-radius: 4px; }
-        .success { color: #008a00; font-weight: bold; background: #e6ffed; padding: 10px; border: 1px solid #008a00; }
-        .error { color: #cf222e; background: #ffebe9; padding: 10px; border: 1px solid #cf222e; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Admin Trends Generator</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <style>
+    #status { margin-top: 20px; padding: 10px; border-radius: 4px; }
+    .success { color: #008a00; font-weight: bold; background: #e6ffed; padding: 10px; border: 1px solid #008a00; }
+    .error { color: #cf222e; background: #ffebe9; padding: 10px; border: 1px solid #cf222e; }
+    small.meta { display:block; color:#555; margin-top:6px; }
+  </style>
 </head>
 <body>
-    <h1>🚀 Trends Generator</h1>
-    
-    <label>1. Ton GitHub Token (PAT)</label>
-    <input type="password" id="ghToken" placeholder="github_pat_...">
-    <small>Le token est mémorisé localement dans ton navigateur.</small>
-    
-    <label>2. Script Google Trends (Embed)</label>
-    <textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" ...'></textarea>
-    
-    <button onclick="publish()">Générer et Publier</button>
+  <h1>🚀 Trends Generator</h1>
 
-    <div id="status"></div>
+  <label>1. Ton GitHub Token (PAT)</label>
+  <input type="password" id="ghToken" placeholder="github_pat_...">
+  <small>Le token est mémorisé localement dans ton navigateur (risque de sécurité — voir notes).</small>
 
-    <script>
-        const REPO_NAME = "Google-Trends-HTML";
-        const REPO_OWNER = "georges-stride-up";
+  <label>2. Script Google Trends (Embed)</label>
+  <textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" ...'></textarea>
 
-        // --- LOGIQUE DE MÉMORISATION DU TOKEN ---
-        window.onload = function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const keyFromUrl = urlParams.get('key');
+  <button onclick="publish()">Générer et Publier</button>
 
-            if (keyFromUrl) {
-                localStorage.setItem('gh_token', keyFromUrl);
-                window.history.replaceState({}, document.title, window.location.pathname);
-                alert("✅ Clé API enregistrée avec succès !");
-            }
+  <div id="status"></div>
 
-            const savedToken = localStorage.getItem('gh_token');
-            if (savedToken) {
-                document.getElementById('ghToken').value = savedToken;
-            }
-        };
+  <script>
+    const REPO_NAME = "Google-Trends-HTML";
+    const REPO_OWNER = "georges-stride-up";
 
-        async function publish() {
-            const token = document.getElementById('ghToken').value;
-            const input = document.getElementById('rawScript').value;
-            const status = document.getElementById('status');
+    // Helpers
+    function slugify(s){
+      return String(s||'').toLowerCase()
+        .replace(/[\s'’]+/g,'-')
+        .replace(/[^a-z0-9\-_,]/g,'')
+        .replace(/-+/g,'-')
+        .replace(/(^-|-$)/g,'');
+    }
 
-            if(!token) { alert("Oublie pas le token !"); return; }
-            localStorage.setItem('gh_token', token); // Sauvegarde si saisi manuellement
+    function decodeBase64Unicode(str) {
+      return decodeURIComponent(Array.prototype.map.call(atob(str), function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+    }
 
-            // --- PARSING ---
-            const kw = input.match(/"keyword":"(.*?)"/)?.[1];
-            const time = input.match(/"time":"(.*?)"/)?.[1];
-            const query = input.match(/"exploreQuery":"(.*?)"/)?.[1];
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const keyFromUrl = urlParams.get('key');
+      if (keyFromUrl) {
+        localStorage.setItem('gh_token', keyFromUrl);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        alert("✅ Clé API enregistrée avec succès !");
+      }
+      const savedToken = localStorage.getItem('gh_token');
+      if (savedToken) document.getElementById('ghToken').value = savedToken;
+    };
 
-            if (!kw || !time) {
-                status.innerHTML = "<div class='error'>❌ Script invalide (Mot-clé ou période non trouvés).</div>";
-                return;
-            }
+    async function publish() {
+      const token = document.getElementById('ghToken').value;
+      const input = document.getElementById('rawScript').value || '';
+      const status = document.getElementById('status');
 
-            const filename = `${kw.toLowerCase().replace(/[\s']/g, '-')}.html`;
-            
-            const finalHTML = `<!DOCTYPE html>
+      if(!token) { alert("Oublie pas le token !"); return; }
+      localStorage.setItem('gh_token', token);
+
+      // Parse multiple items
+      const keywordMatches = [...input.matchAll(/"keyword"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
+      const timeMatches = [...input.matchAll(/"time"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
+      const geoMatches = [...input.matchAll(/"geo"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
+      const queryMatch = input.match(/"exploreQuery"\s*:\s*"(.*?)"/);
+      const exploreQuery = queryMatch ? queryMatch[1] : '';
+
+      const primaryKeyword = keywordMatches[0] || (keywordMatches.length ? keywordMatches.join(',') : '');
+      const primaryTime = timeMatches[0] || 'today 12-m';
+      const geoDisplay = geoMatches.length ? geoMatches.join(',') : '';
+
+      if (!primaryKeyword || !primaryTime) {
+        status.innerHTML = "<div class='error'>❌ Script invalide (mot-clé ou période non trouvés).</div>";
+        return;
+      }
+
+      // filename: keyword[_geo-geo...]_time.html
+      const safeKw = slugify(primaryKeyword);
+      const safeGeos = geoMatches.length ? geoMatches.map(g=>slugify(g)).join('-') : 'allgeo';
+      const safeTime = slugify(primaryTime.replace(/\s+/g,'-'));
+      const filename = `${safeKw}${geoMatches.length?`_${safeGeos}`:''}_${safeTime}.html`;
+
+      // display title for index
+      const displayTitle = `${primaryKeyword}${geoDisplay?` — ${geoDisplay}`:''} — ${primaryTime}`;
+
+      // build trend page HTML (uses stable guestPath)
+      const comparisonItems = keywordMatches.map((k,i)=>
+        `{\"keyword\":\"${k}\",\"geo\":\"${geoMatches[i]||geoMatches[0]||''}\",\"time\":\"${timeMatches[i]||primaryTime}\"}`
+      ).join(',');
+
+      const finalHTML = `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><style>body,html{margin:0;padding:0;height:100%;overflow:hidden;}#c{width:100%;height:100vh;}</style></head>
+<head><meta charset="UTF-8"><title>${primaryKeyword}</title><style>body,html{margin:0;padding:0;height:100%;overflow:hidden;}#c{width:100%;height:100vh;}</style></head>
 <body><div id="c">
-<script type="text/javascript" src="https://ssl.gstatic.com/trends_nrtr/4284_RC01/embed_loader.js"><\/script>
+<script type="text/javascript" src="https://ssl.gstatic.com/trends_nrtr/4349_RC01/embed_loader.js"><\/script>
 <script type="text/javascript">
-trends.embed.renderExploreWidget("TIMESERIES", {"comparisonItem":[{"keyword":"${kw}","geo":"FR","time":"${time}"}],"category":0,"property":""}, {"exploreQuery":"${query}","guestPath":"https://trends.google.fr:443/trends/embed/"});
+trends.embed.renderExploreWidget("TIMESERIES", {\"comparisonItem\":[${comparisonItems}],\"category\":0,\"property\":\"\"}, {\"exploreQuery\":\"${exploreQuery}\",\"guestPath\":\"https://trends.google.com/trends/embed/\"});
 <\/script></div></body></html>`;
 
-            status.innerHTML = "⏳ Vérification et envoi à GitHub...";
-            const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
+      status.innerHTML = "⏳ Vérification et envoi à GitHub...";
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
 
-            try {
-                // 1. Récupérer le SHA si le fichier existe déjà
-                let sha = null;
-                const checkRes = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (checkRes.ok) {
-                    const existingFileData = await checkRes.json();
-                    sha = existingFileData.sha;
-                }
-
-                // 2. Publication (Création ou Mise à jour)
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: `Update Trend: ${kw}`,
-                        content: btoa(unescape(encodeURIComponent(finalHTML))),
-                        sha: sha
-                    })
-                });
-
-                if (response.ok) {
-                    const pageUrl = `https://${REPO_OWNER}.github.io/${REPO_NAME}/${filename}`;
-                    status.innerHTML = `<div class="success">✅ Publié !<br>URL Looker : <br><a href="${pageUrl}" target="_blank">${pageUrl}</a></div>`;
-                } else {
-                    const err = await response.json();
-                    status.innerHTML = `<div class="error">❌ Erreur API : ${err.message}</div>`;
-                }
-            } catch (e) {
-                status.innerHTML = "<div class='error'>❌ Erreur réseau ou configuration.</div>";
-            }
+      try {
+        // Get existing SHA if file exists
+        let sha = null;
+        const checkRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (checkRes.ok) {
+          const existingFileData = await checkRes.json();
+          sha = existingFileData.sha;
         }
-    </script>
+
+        // Create/Update the trend file
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            message: `Add/Update Trend: ${primaryKeyword}`,
+            content: btoa(unescape(encodeURIComponent(finalHTML))),
+            sha: sha
+          })
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          status.innerHTML = `<div class="error">❌ Erreur API lors de la création du fichier : ${err.message}</div>`;
+          return;
+        }
+
+        // Try to update index.html to add the human-friendly link (will skip if already present)
+        try {
+          const indexUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/index.html`;
+          const idxRes = await fetch(indexUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+          if (idxRes.ok) {
+            const idxData = await idxRes.json();
+            const idxSha = idxData.sha;
+            const raw = decodeBase64Unicode(idxData.content);
+
+            if (!raw.includes(`href='${filename}'`) && !raw.includes(`href="${filename}"`)) {
+              const newLi = `\n<li><a href='${filename}'>🔍 ${displayTitle}</a></li>`;
+              const updated = raw.replace('</ul>', `${newLi}\n</ul>`);
+              const updRes = await fetch(indexUrl, {
+                method: 'PUT',
+                headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                  message: `Add Trend link: ${displayTitle}`,
+                  content: btoa(unescape(encodeURIComponent(updated))),
+                  sha: idxSha
+                })
+              });
+              if (!updRes.ok) console.warn('Failed to update index.html automatically');
+            }
+          }
+        } catch (e) {
+          console.warn('Could not update index.html:', e);
+        }
+
+        const pageUrl = `https://${REPO_OWNER}.github.io/${REPO_NAME}/${filename}`;
+        status.innerHTML = `<div class="success">✅ Publié !<br>URL: <a href="${pageUrl}" target="_blank">${pageUrl}</a><br><small class="meta">Index label: "${displayTitle}"</small></div>`;
+      } catch (e) {
+        status.innerHTML = "<div class='error'>❌ Erreur réseau ou configuration.</div>";
+      }
+    }
+  </script>
 </body>
 </html>
