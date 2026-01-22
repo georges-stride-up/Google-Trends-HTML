@@ -12,180 +12,195 @@
   </style>
 </head>
 <body>
-  <h1>🚀 Trends Generator</h1>
 
-  <label>1. Deployment mode</label>
-  <select id="mode">
-    <option value="server">Server-side publish (recommended)</option>
-    <option value="direct">Direct publish from browser (legacy, insecure)</option>
-  </select>
+<h1>🚀 Trends Generator</h1>
 
-  <div id="server-note" style="margin-top:8px">
-    <small class="meta">Server endpoint (e.g. Vercel) must be deployed with a GITHUB_TOKEN secret. Default server endpoint: <code>/api/publish</code>.</small>
-  </div>
+<label>1. Deployment mode</label>
+<select id="mode">
+  <option value="server">Server-side publish (recommended)</option>
+  <option value="direct">Direct publish from browser (legacy, insecure)</option>
+</select>
 
-  <label style="margin-top:10px">2. Ton GitHub Token (PAT) — only needed for Direct mode</label>
-  <input type="password" id="ghToken" placeholder="github_pat_..." />
+<div id="server-note" style="margin-top:8px">
+  <small class="meta">
+    Server endpoint must be deployed with a <code>GITHUB_TOKEN</code>.
+    Default endpoint: <code>/api/publish</code>
+  </small>
+</div>
 
-  <label style="margin-top:10px">3. Script Google Trends (Embed)</label>
-  <textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" ...'></textarea>
+<label style="margin-top:10px">
+  2. Ton GitHub Token (PAT) — only needed for Direct mode
+</label>
+<input type="password" id="ghToken" placeholder="github_pat_..." />
 
-  <button onclick="publish()">Générer et Publier</button>
+<label style="margin-top:10px">
+  3. Script Google Trends (Embed)
+</label>
+<textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" ...'></textarea>
 
-  <div id="status"></div>
+<button id="publishBtn">Générer et Publier</button>
 
-  <script>
-    const REPO_NAME = "Google-Trends-HTML";
-    const REPO_OWNER = "georges-stride-up";
+<div id="status"></div>
 
-    function slugify(s){
-      return String(s||'').toLowerCase()
-        .replace(/[\s'’]+/g,'-')
-        .replace(/[^a-z0-9\-_,]/g,'')
-        .replace(/-+/g,'-')
-        .replace(/(^-|-$)/g,'');
-    }
+<script>
+/* =======================
+   CONFIG
+======================= */
+const REPO_NAME = "Google-Trends-HTML";
+const REPO_OWNER = "georges-stride-up";
+const ENDPOINT = "https://google-trends-html.vercel.app/api/publish";
 
-    function buildExploreQuery({primaryKeyword, primaryTime, primaryGeo, lang}) {
-      const parts = [];
-      parts.push('date=' + encodeURIComponent(primaryTime));
-      if (primaryGeo) parts.push('geo=' + encodeURIComponent(primaryGeo));
-      parts.push('q=' + encodeURIComponent(primaryKeyword));
-      if (lang) parts.push('hl=' + encodeURIComponent(lang));
-      return parts.join('&');
-    }
+/* =======================
+   HELPERS
+======================= */
+function slugify(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s'’]+/g, '-')
+    .replace(/[^a-z0-9\-_,]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
 
-    window.onload = function() {
-      const savedToken = localStorage.getItem('gh_token');
-      if (savedToken) document.getElementById('ghToken').value = savedToken;
-      document.getElementById('mode').value = 'server';
-    };
+function buildExploreQuery({ primaryKeyword, primaryTime, primaryGeo, lang }) {
+  const parts = [];
+  parts.push('date=' + encodeURIComponent(primaryTime));
+  if (primaryGeo) parts.push('geo=' + encodeURIComponent(primaryGeo));
+  parts.push('q=' + encodeURIComponent(primaryKeyword));
+  if (lang) parts.push('hl=' + encodeURIComponent(lang));
+  return parts.join('&');
+}
 
-    async function publish() {
-      const mode = document.getElementById('mode').value;
-      const token = document.getElementById('ghToken').value;
-      const input = document.getElementById('rawScript').value || '';
-      const status = document.getElementById('status');
+/* =======================
+   INIT
+======================= */
+window.addEventListener('DOMContentLoaded', () => {
+  const savedToken = localStorage.getItem('gh_token');
+  if (savedToken) document.getElementById('ghToken').value = savedToken;
+  document.getElementById('mode').value = 'server';
 
-      if (mode === 'direct' && !token) { alert("Oublie pas le token !"); return; }
+  document
+    .getElementById('publishBtn')
+    .addEventListener('click', publish);
+});
 
-      // Parse items
-      const keywordMatches = [...input.matchAll(/"keyword"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
-      const timeMatches = [...input.matchAll(/"time"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
-      const geoMatches = [...input.matchAll(/"geo"\s*:\s*"(.*?)"/g)].map(m=>m[1]);
-      const langMatch = input.match(/hl=([^&"]+)/);
-      const primaryKeyword = keywordMatches[0] || (keywordMatches.length ? keywordMatches.join(',') : '');
-      const primaryTime = timeMatches[0] || 'today 12-m';
-      const primaryGeo = (geoMatches[0] && geoMatches[0] !== '') ? geoMatches[0] : '';
-      const lang = langMatch ? decodeURIComponent(langMatch[1]) : 'en-US';
+/* =======================
+   MAIN
+======================= */
+async function publish() {
+  const mode = document.getElementById('mode').value;
+  const token = document.getElementById('ghToken').value;
+  const input = document.getElementById('rawScript').value || '';
+  const status = document.getElementById('status');
 
-      if (!primaryKeyword || !primaryTime) {
-        status.innerHTML = "<div class='error'>❌ Script invalide (mot-clé ou période non trouvés).</div>";
+  status.innerHTML = '';
+
+  if (mode === 'direct' && !token) {
+    alert("Oublie pas le token !");
+    return;
+  }
+
+  // Parse embed script
+  const keywordMatches = [...input.matchAll(/"keyword"\s*:\s*"(.*?)"/g)].map(m => m[1]);
+  const timeMatches = [...input.matchAll(/"time"\s*:\s*"(.*?)"/g)].map(m => m[1]);
+  const geoMatches = [...input.matchAll(/"geo"\s*:\s*"(.*?)"/g)].map(m => m[1]);
+  const langMatch = input.match(/hl=([^&"]+)/);
+
+  const primaryKeyword = keywordMatches[0] || '';
+  const primaryTime = timeMatches[0] || 'today 12-m';
+  const primaryGeo = geoMatches[0] || '';
+  const lang = langMatch ? decodeURIComponent(langMatch[1]) : 'en-US';
+
+  if (!primaryKeyword) {
+    status.innerHTML = "<div class='error'>❌ Script invalide (mot-clé non trouvé).</div>";
+    return;
+  }
+
+  const safeKw = slugify(primaryKeyword);
+  const safeGeo = primaryGeo ? slugify(primaryGeo) : 'allgeo';
+  const safeTime = slugify(primaryTime.replace(/\s+/g, '-'));
+  const filename = `${safeKw}_${safeGeo}_${safeTime}.html`;
+
+  const displayTitle =
+    primaryKeyword + (primaryGeo ? ' — ' + primaryGeo : '') + ' — ' + primaryTime;
+
+  const comparisonItems = keywordMatches.map((k, i) => ({
+    keyword: k,
+    geo: geoMatches[i] || primaryGeo || '',
+    time: timeMatches[i] || primaryTime
+  }));
+
+  const comparisonItemsString = comparisonItems
+    .map(ci =>
+      `{"keyword":"${ci.keyword}","geo":"${ci.geo}","time":"${ci.time}"}`
+    )
+    .join(',');
+
+  const canonicalExploreQuery = buildExploreQuery({
+    primaryKeyword,
+    primaryTime,
+    primaryGeo,
+    lang
+  });
+
+  const finalHTML =
+`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${primaryKeyword}</title>
+<style>
+body,html{margin:0;padding:0;height:100%;overflow:hidden;}
+#c{width:100%;height:100vh;}
+</style>
+</head>
+<body>
+<div id="c">
+<script src="https://ssl.gstatic.com/trends_nrtr/4349_RC01/embed_loader.js"><\/script>
+<script>
+trends.embed.renderExploreWidget(
+  "TIMESERIES",
+  {"comparisonItem":[${comparisonItemsString}],"category":0,"property":""},
+  {"exploreQuery":"${canonicalExploreQuery}","guestPath":"https://trends.google.com/trends/embed/"}
+);
+<\/script>
+</div>
+</body>
+</html>`;
+
+  status.innerHTML = "⏳ Préparation...";
+
+  if (mode === 'server') {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repoOwner: REPO_OWNER,
+          repoName: REPO_NAME,
+          filename,
+          message: `Add/Update Trend: ${primaryKeyword}`,
+          content: finalHTML,
+          displayTitle
+        })
+      });
+
+      const j = await res.json();
+
+      if (!res.ok) {
+        status.innerHTML = `<div class="error">❌ ${j.message || res.statusText}</div>`;
         return;
       }
 
-      // Prepare filename components (keyword_countrycode_period.html)
-const safeKw = slugify(primaryKeyword);
-const safeGeo = primaryGeo ? slugify(primaryGeo) : 'allgeo';
-const safeTime = slugify(primaryTime.replace(/\s+/g,'-'));
-const filename = `${safeKw}_${safeGeo}_${safeTime}.html`;
+      status.innerHTML =
+        `<div class="success">✅ Publié : <a href="${j.html_url}" target="_blank">${filename}</a></div>`;
 
-const displayTitle =
-  primaryKeyword + (primaryGeo ? ' — ' + primaryGeo : '') + ' — ' + primaryTime;
-
-      // Build comparison items
-      const comparisonItems = keywordMatches.map((k,i)=>
-        ({ keyword: k,
-           geo: geoMatches[i] || geoMatches[0] || primaryGeo || '',
-           time: timeMatches[i] || primaryTime
-         })
-      );
-
-      const comparisonItemsString = comparisonItems.map(ci =>
-        `{\"keyword\":\"${ci.keyword}\",\"geo\":\"${ci.geo}\",\"time\":\"${ci.time}\"}`
-      ).join(',');
-
-      // Build canonical exploreQuery & guestPath
-      const canonicalExploreQuery = buildExploreQuery({
-        primaryKeyword,
-        primaryTime,
-        primaryGeo,
-        lang
-      });
-      const guestPath = `https://trends.google.com/trends/embed/`;
-
-      const finalHTML = `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>${primaryKeyword}</title><style>body,html{margin:0;padding:0;height:100%;overflow:hidden;}#c{width:100%;height:100vh;}</style></head>
-<body><div id="c">
-<script type="text/javascript" src="https://ssl.gstatic.com/trends_nrtr/4349_RC01/embed_loader.js"></script>
-<script type="text/javascript">
-trends.embed.renderExploreWidget("TIMESERIES", {\"comparisonItem\":[${comparisonItemsString}],\"category\":0,\"property\":\"\"}, {\"exploreQuery\":\"${canonicalExploreQuery}\",\"guestPath\":\"${guestPath}\"});
-<\/script></div></body></html>`;
-
-      status.innerHTML = "⏳ Préparation...";
-
-      if (mode === 'server') {
-        // Call the serverless endpoint (deployed by you) to create the file.
-        // If you deploy to a different host, update endpoint to the deployed URL (e.g. https://your-app.vercel.app/api/publish)
-        const endpoint = 'https://google-trends-html.vercel.app/api/publish';
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              repoOwner: REPO_OWNER,
-              repoName: REPO_NAME,
-              filename,
-              message: `Add/Update Trend: ${primaryKeyword}`,
-              content: finalHTML,
-              displayTitle
-            })
-          });
-          const j = await res.json();
-          if (!res.ok) {
-            status.innerHTML = `<div class="error">❌ Server error: ${j?.message || res.statusText}</div>`;
-            return;
-          }
-          status.innerHTML = `<div class="success">✅ Publié via serveur: <a href="${j.html_url}" target="_blank">${filename}</a></div>`;
-          return;
-        } catch (e) {
-          status.innerHTML = `<div class="error">❌ Erreur serveur: ${e.message}</div>`;
-          return;
-        }
-      } else {
-        // Legacy direct publish (keeps existing behavior). Token is used from browser. Not recommended.
-        localStorage.setItem('gh_token', token);
-        status.innerHTML = "⏳ Envoi direct à GitHub...";
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${filename}`;
-        try {
-          // get sha if exists
-          let sha = null;
-          const checkRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` }});
-          if (checkRes.ok) {
-            const existingFileData = await checkRes.json();
-            sha = existingFileData.sha;
-          }
-          const response = await fetch(url, {
-            method: 'PUT',
-            headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
-            body: JSON.stringify({
-              message: `Add/Update Trend: ${primaryKeyword}`,
-              content: btoa(unescape(encodeURIComponent(finalHTML))),
-              sha: sha
-            })
-          });
-          if (!response.ok) {
-            const err = await response.json();
-            status.innerHTML = `<div class="error">❌ Erreur API : ${err.message}</div>`;
-            return;
-          }
-          status.innerHTML = `<div class="success">✅ Fichier créé : ${filename}</div>`;
-        } catch (err) {
-          status.innerHTML = `<div class="error">❌ Erreur inattendue : ${err.message}</div>`;
-        }
-      }
+    } catch (e) {
+      status.innerHTML = `<div class="error">❌ ${e.message}</div>`;
     }
-  </script>
+  }
+}
+</script>
+
 </body>
 </html>
