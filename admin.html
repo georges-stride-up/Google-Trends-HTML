@@ -85,11 +85,13 @@
       }
 
       // Prepare filename components (keyword_countrycode_period.html)
-      const safeKw = slugify(primaryKeyword);
-      const safeGeo = primaryGeo ? slugify(primaryGeo) : 'allgeo';
-      const safeTime = slugify(primaryTime.replace(/\s+/g,'-'));
-      const filename = `${safeKw}_${safeGeo}_${safeTime}.html`;
-      const displayTitle = `${primaryKeyword}${primaryGeo?` — ${primaryGeo}`:''} — ${primaryTime}`;
+const safeKw = slugify(primaryKeyword);
+const safeGeo = primaryGeo ? slugify(primaryGeo) : 'allgeo';
+const safeTime = slugify(primaryTime.replace(/\s+/g,'-'));
+const filename = `${safeKw}_${safeGeo}_${safeTime}.html`;
+
+const displayTitle =
+  primaryKeyword + (primaryGeo ? ' — ' + primaryGeo : '') + ' — ' + primaryTime;
 
       // Build comparison items
       const comparisonItems = keywordMatches.map((k,i)=>
