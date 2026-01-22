@@ -126,7 +126,7 @@ trends.embed.renderExploreWidget("TIMESERIES", {\"comparisonItem\":[${comparison
       if (mode === 'server') {
         // Call the serverless endpoint (deployed by you) to create the file.
         // If you deploy to a different host, update endpoint to the deployed URL (e.g. https://your-app.vercel.app/api/publish)
-        const endpoint = '/api/publish';
+        const endpoint = 'https://google-trends-html.vercel.app/api/publish';
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
