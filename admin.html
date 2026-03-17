@@ -2,45 +2,490 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Admin Trends Generator</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Trends</title>
   <style>
-    #status { margin-top: 20px; padding: 10px; border-radius: 4px; }
-    .success { color: #008a00; font-weight: bold; background: #e6ffed; padding: 10px; border: 1px solid #008a00; }
-    .error { color: #cf222e; background: #ffebe9; padding: 10px; border: 1px solid #cf222e; }
-    small.meta { display:block; color:#555; margin-top:6px; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #1a1a1f;
+      --bg-card: #16161a;
+      --border: #2a2a30;
+      --border-hover: #6366f1;
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.1);
+      --error: #ef4444;
+      --error-bg: rgba(239, 68, 68, 0.1);
+      --info: #6366f1;
+      --info-bg: rgba(99, 102, 241, 0.1);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ===== NAVBAR ===== */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    .navbar-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      height: 56px;
+      gap: 8px;
+    }
+    .navbar-brand {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text-primary);
+      margin-right: auto;
+      letter-spacing: -0.01em;
+    }
+    .nav-link {
+      position: relative;
+      padding: 16px 16px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: color 0.2s;
+      white-space: nowrap;
+    }
+    .nav-link:hover {
+      color: var(--text-secondary);
+    }
+    .nav-link.active {
+      color: var(--text-primary);
+    }
+    .nav-link.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 16px;
+      right: 16px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+    }
+    .nav-count {
+      display: inline-block;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 1px 7px;
+      border-radius: 10px;
+      margin-left: 5px;
+      font-weight: 600;
+    }
+    .nav-settings {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      transition: all 0.2s;
+      margin-left: 8px;
+    }
+    .nav-settings:hover {
+      border-color: var(--border-hover);
+      color: var(--accent);
+    }
+
+    /* ===== CONTENT ===== */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    .settings-panel {
+      display: none;
+      animation: slideDown 0.2s ease-out;
+      margin-bottom: 24px;
+    }
+    .settings-panel.open { display: block; }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    /* ===== FORM CARDS ===== */
+    .form-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: border-color 0.2s;
+    }
+    .form-card:hover { border-color: #3a3a44; }
+
+    .card-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* ===== FORM ELEMENTS ===== */
+    label {
+      display: block;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    input[type="url"],
+    input[type="text"],
+    textarea {
+      width: 100%;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    textarea { resize: vertical; }
+    ::placeholder { color: var(--text-muted); }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: white;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--border-hover);
+      color: var(--text-primary);
+    }
+
+    /* ===== PREVIEW ===== */
+    .preview-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .preview-card table { width: 100%; border-collapse: collapse; }
+    .preview-card td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .preview-card tr:last-child td { border-bottom: none; }
+    .preview-card td:first-child {
+      width: 120px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ===== STATUS ===== */
+    .status-msg {
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-msg a { color: inherit; font-weight: 600; }
+    .status-success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+    .status-error {
+      background: var(--error-bg);
+      color: var(--error);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    .status-info {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    /* ===== TOAST ===== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      background: rgba(99, 102, 241, 0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--accent-hover);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      font-size: 0.85rem;
+      font-weight: 500;
+      animation: toastIn 0.3s ease-out, toastOut 0.4s 2s forwards;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(10px); } }
+
+    /* ===== SPINNER ===== */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(99, 102, 241, 0.3);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== SEARCH ===== */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .search-wrap input { padding-left: 36px; }
+    .search-wrap::before {
+      content: '\2315';
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    /* ===== LIBRARY GRID ===== */
+    .lib-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .lib-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .lib-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-hover);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.08);
+    }
+    .lib-card-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .hint {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 6px;
+    }
+    code {
+      background: var(--bg-primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: var(--accent-hover);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state p { font-size: 0.9rem; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #previewSection { display: none; }
+    #previewSection.visible {
+      display: block;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @media (max-width: 640px) {
+      .navbar-inner { padding: 0 14px; height: 48px; }
+      .nav-link { padding: 12px 10px; font-size: 0.85rem; }
+      .navbar-brand { font-size: 0.9rem; }
+      .container { padding: 20px 14px 40px; }
+      .form-card { padding: 18px; }
+      .preview-card td:first-child { width: 90px; }
+      .lib-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 
-<h1>🚀 Trends Generator</h1>
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="navbar-inner">
+    <span class="navbar-brand">Google Trends</span>
+    <button class="nav-link" data-tab="library">Bibliotheque<span class="nav-count" id="navCount">...</span></button>
+    <button class="nav-link active" data-tab="publish">Nouveau trend</button>
+    <button class="nav-settings" id="settingsBtn" type="button" title="Settings">&#9881;</button>
+  </div>
+</nav>
 
-<label>1. Deployment mode</label>
-<select id="mode">
-  <option value="server">Server-side publish (recommended)</option>
-  <option value="direct">Direct publish from browser (legacy, insecure)</option>
-</select>
+<!-- ===== CONTENT ===== -->
+<div class="container">
 
-<div id="server-note" style="margin-top:8px">
-  <small class="meta">
-    Server endpoint must be deployed with a <code>GITHUB_TOKEN</code>.
-    Default endpoint: <code>/api/publish</code>
-  </small>
+  <!-- Settings Panel -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="form-card">
+      <label for="endpointUrl">Server Endpoint URL</label>
+      <input type="url" id="endpointUrl" placeholder="https://your-app.vercel.app/api/publish" />
+      <p class="hint">L'URL de ta fonction serverless. Le <code>GITHUB_TOKEN</code> doit etre configure sur le serveur.</p>
+      <button class="btn btn-secondary" id="saveSettingsBtn" type="button" style="margin-top:12px">Save</button>
+    </div>
+  </div>
+
+  <!-- TAB: Library -->
+  <div class="tab-content" id="tab-library">
+    <div class="search-wrap">
+      <input type="text" id="libSearch" placeholder="Rechercher un trend..." />
+    </div>
+    <div id="libGrid" class="lib-grid"></div>
+    <div id="libEmpty" class="empty-state" style="display:none">
+      <p>Aucun trend trouve.</p>
+    </div>
+    <div id="libLoading" class="empty-state">
+      <span class="spinner"></span>
+      <p style="margin-top:12px">Chargement...</p>
+    </div>
+  </div>
+
+  <!-- TAB: Publish -->
+  <div class="tab-content active" id="tab-publish">
+    <div class="form-card">
+      <div class="card-label">
+        <span class="step-badge">1</span>
+        Colle le script embed Google Trends
+      </div>
+      <textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" src="https://ssl.gstatic.com/trends_nrtr/...">'></textarea>
+      <p class="hint">Ctrl+Enter pour parser</p>
+      <button class="btn btn-primary" id="parseBtn" style="margin-top:12px">Parse &amp; Preview</button>
+    </div>
+
+    <div id="previewSection">
+      <div class="form-card">
+        <div class="card-label">
+          <span class="step-badge">2</span>
+          Verifie les donnees extraites
+        </div>
+        <div class="preview-card">
+          <table>
+            <tr><td>Keyword(s)</td><td id="prevKeywords"></td></tr>
+            <tr><td>Geo</td><td id="prevGeo"></td></tr>
+            <tr><td>Time range</td><td id="prevTime"></td></tr>
+            <tr><td>Language</td><td id="prevLang"></td></tr>
+            <tr><td>Filename</td><td id="prevFilename"></td></tr>
+          </table>
+        </div>
+        <button class="btn btn-primary" id="confirmPublishBtn">Confirm &amp; Publish</button>
+      </div>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
 </div>
-
-<label style="margin-top:10px">
-  2. Ton GitHub Token (PAT) — only needed for Direct mode
-</label>
-<input type="password" id="ghToken" placeholder="github_pat_..." />
-
-<label style="margin-top:10px">
-  3. Script Google Trends (Embed)
-</label>
-<textarea id="rawScript" rows="6" placeholder='<script type="text/javascript" ...'></textarea>
-
-<button id="publishBtn">Générer et Publier</button>
-
-<div id="status"></div>
 
 <script>
 /* =======================
@@ -48,18 +493,94 @@
 ======================= */
 const REPO_NAME = "Google-Trends-HTML";
 const REPO_OWNER = "georges-stride-up";
-const ENDPOINT = "https://google-trends-html.vercel.app/api/publish";
+const DEFAULT_ENDPOINT = "https://google-trends-html.vercel.app/api/publish";
 
 /* =======================
    HELPERS
 ======================= */
+function escapeHtml(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
 function slugify(s) {
   return String(s || '')
     .toLowerCase()
-    .replace(/[\s'’]+/g, '-')
+    .replace(/[\s\u2019']+/g, '-')
     .replace(/[^a-z0-9\-_,]/g, '')
     .replace(/-+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+/** Decode base64 with proper UTF-8 support (handles emoji, accents) */
+function decodeBase64UTF8(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+/**
+ * Parse a trend filename into: Keyword — Country — Time period
+ * Pattern: {keyword}_{geo}_{timerange}.html
+ *   e.g. "perfume_us_today-12-m.html" → "Perfume — US — 12 mois"
+ *        "anti-moustique_fr_today-5-y.html" → "Anti moustique — FR — 5 ans"
+ *        "bottes-neige.html" → "Bottes neige" (legacy)
+ */
+function humanizeFilename(name) {
+  const base = name.replace(/\.html$/, '');
+  const parts = base.split('_');
+
+  function capitalize(s) {
+    const w = s.replace(/-/g, ' ').trim();
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }
+
+  const GEO = {
+    us:'US', fr:'FR', de:'DE', gb:'GB', es:'ES', it:'IT',
+    ca:'CA', au:'AU', br:'BR', jp:'JP', in:'IN', mx:'MX',
+    allgeo:'Mondial'
+  };
+
+  function humanizeTime(s) {
+    let m;
+    m = s.match(/^today-(\d+)-m$/);  if (m) return m[1] + ' mois';
+    m = s.match(/^today-(\d+)-y$/);  if (m) return m[1] + (m[1] === '1' ? ' an' : ' ans');
+    m = s.match(/^now-(\d+)-d$/);    if (m) return m[1] + ' jours';
+    m = s.match(/^now-(\d+)-H$/);    if (m) return m[1] + 'h';
+    m = s.match(/^today-(\d+)-d$/);  if (m) return m[1] + ' jours';
+    return capitalize(s);
+  }
+
+  function isGeo(s) { return GEO.hasOwnProperty(s); }
+  function isTime(s) { return /^(today|now)-/.test(s); }
+
+  if (parts.length >= 3) {
+    const last = parts[parts.length - 1];
+    const secondLast = parts[parts.length - 2];
+
+    if (isTime(last) && isGeo(secondLast)) {
+      const keyword = capitalize(parts.slice(0, -2).join(' '));
+      const geo = GEO[secondLast];
+      const time = humanizeTime(last);
+      return keyword + ' \u2014 ' + geo + ' \u2014 ' + time;
+    }
+    if (isTime(last)) {
+      const keyword = capitalize(parts.slice(0, -1).join(' '));
+      const time = humanizeTime(last);
+      return keyword + ' \u2014 ' + time;
+    }
+  }
+
+  if (parts.length === 2) {
+    const a = capitalize(parts[0]);
+    if (isGeo(parts[1])) return a + ' \u2014 ' + GEO[parts[1]];
+    if (isTime(parts[1])) return a + ' \u2014 ' + humanizeTime(parts[1]);
+    return capitalize(parts.join(' '));
+  }
+
+  return capitalize(parts[0]);
 }
 
 function buildExploreQuery({ primaryKeyword, primaryTime, primaryGeo, lang }) {
@@ -71,36 +592,107 @@ function buildExploreQuery({ primaryKeyword, primaryTime, primaryGeo, lang }) {
   return parts.join('&');
 }
 
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+function getEndpoint() {
+  return document.getElementById('endpointUrl').value.trim() || DEFAULT_ENDPOINT;
+}
+
+function loadSetting(key, fallback) {
+  try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+}
+function saveSetting(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
+}
+
+function setStatus(type, text, linkUrl) {
+  const container = document.getElementById('status');
+  container.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'status-msg status-' + type;
+  if (type === 'info') {
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    div.appendChild(spinner);
+  }
+  const span = document.createElement('span');
+  span.textContent = text;
+  div.appendChild(span);
+  if (linkUrl) {
+    const a = document.createElement('a');
+    a.href = linkUrl;
+    a.target = '_blank';
+    a.textContent = ' Voir le fichier';
+    div.appendChild(a);
+  }
+  container.appendChild(div);
+}
+
+/* =======================
+   STATE
+======================= */
+let pendingPublish = null;
+let libraryCards = [];
+
+/* =======================
+   TABS
+======================= */
+function switchTab(tabName) {
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.nav-link[data-tab="${tabName}"]`).classList.add('active');
+  document.getElementById('tab-' + tabName).classList.add('active');
+}
+
 /* =======================
    INIT
 ======================= */
 window.addEventListener('DOMContentLoaded', () => {
-  const savedToken = localStorage.getItem('gh_token');
-  if (savedToken) document.getElementById('ghToken').value = savedToken;
-  document.getElementById('mode').value = 'server';
+  document.getElementById('endpointUrl').value = loadSetting('trends_endpoint', DEFAULT_ENDPOINT);
 
-  document
-    .getElementById('publishBtn')
-    .addEventListener('click', publish);
+  document.querySelectorAll('.nav-link').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  document.getElementById('parseBtn').addEventListener('click', parseAndPreview);
+  document.getElementById('confirmPublishBtn').addEventListener('click', confirmAndPublish);
+  document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsPanel').classList.toggle('open');
+  });
+  document.getElementById('libSearch').addEventListener('input', filterLibrary);
+
+  document.getElementById('rawScript').addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); parseAndPreview(); }
+  });
+
+  loadLibrary();
 });
 
 /* =======================
-   MAIN
+   SETTINGS
 ======================= */
-async function publish() {
-  const mode = document.getElementById('mode').value;
-  const token = document.getElementById('ghToken').value;
+function saveSettings() {
+  const url = document.getElementById('endpointUrl').value.trim();
+  if (url) { saveSetting('trends_endpoint', url); showToast('Settings saved'); }
+}
+
+/* =======================
+   PARSE & PREVIEW
+======================= */
+function parseAndPreview() {
   const input = document.getElementById('rawScript').value || '';
-  const status = document.getElementById('status');
+  const previewSection = document.getElementById('previewSection');
+  document.getElementById('status').innerHTML = '';
+  previewSection.classList.remove('visible');
+  pendingPublish = null;
 
-  status.innerHTML = '';
-
-  if (mode === 'direct' && !token) {
-    alert("Oublie pas le token !");
-    return;
-  }
-
-  // Parse embed script
   const keywordMatches = [...input.matchAll(/"keyword"\s*:\s*"(.*?)"/g)].map(m => m[1]);
   const timeMatches = [...input.matchAll(/"time"\s*:\s*"(.*?)"/g)].map(m => m[1]);
   const geoMatches = [...input.matchAll(/"geo"\s*:\s*"(.*?)"/g)].map(m => m[1]);
@@ -111,44 +703,30 @@ async function publish() {
   const primaryGeo = geoMatches[0] || '';
   const lang = langMatch ? decodeURIComponent(langMatch[1]) : 'en-US';
 
-  if (!primaryKeyword) {
-    status.innerHTML = "<div class='error'>❌ Script invalide (mot-clé non trouvé).</div>";
-    return;
-  }
+  if (!primaryKeyword) { setStatus('error', 'Script invalide \u2014 mot-cl\u00e9 non trouv\u00e9.'); return; }
 
   const safeKw = slugify(primaryKeyword);
   const safeGeo = primaryGeo ? slugify(primaryGeo) : 'allgeo';
   const safeTime = slugify(primaryTime.replace(/\s+/g, '-'));
   const filename = `${safeKw}_${safeGeo}_${safeTime}.html`;
-
-  const displayTitle =
-    primaryKeyword + (primaryGeo ? ' — ' + primaryGeo : '') + ' — ' + primaryTime;
+  const displayTitle = primaryKeyword + (primaryGeo ? ' \u2014 ' + primaryGeo : '') + ' \u2014 ' + primaryTime;
 
   const comparisonItems = keywordMatches.map((k, i) => ({
-    keyword: k,
-    geo: geoMatches[i] || primaryGeo || '',
-    time: timeMatches[i] || primaryTime
+    keyword: k, geo: geoMatches[i] || primaryGeo || '', time: timeMatches[i] || primaryTime
   }));
-
   const comparisonItemsString = comparisonItems
-    .map(ci =>
-      `{"keyword":"${ci.keyword}","geo":"${ci.geo}","time":"${ci.time}"}`
-    )
+    .map(ci => `{"keyword":"${ci.keyword}","geo":"${ci.geo}","time":"${ci.time}"}`)
     .join(',');
-
-  const canonicalExploreQuery = buildExploreQuery({
-    primaryKeyword,
-    primaryTime,
-    primaryGeo,
-    lang
-  });
+  const canonicalExploreQuery = buildExploreQuery({ primaryKeyword, primaryTime, primaryGeo, lang });
+  const escapedTitle = escapeHtml(displayTitle);
 
   const finalHTML =
 `<!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>${primaryKeyword}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapedTitle}</title>
 <style>
 body,html{margin:0;padding:0;height:100%;overflow:hidden;}
 #c{width:100%;height:100vh;}
@@ -168,39 +746,147 @@ trends.embed.renderExploreWidget(
 </body>
 </html>`;
 
-  status.innerHTML = "⏳ Préparation...";
+  document.getElementById('prevKeywords').textContent = keywordMatches.join(', ');
+  document.getElementById('prevGeo').textContent = primaryGeo || 'Worldwide';
+  document.getElementById('prevTime').textContent = primaryTime;
+  document.getElementById('prevLang').textContent = lang;
+  const filenameCell = document.getElementById('prevFilename');
+  filenameCell.textContent = '';
+  const codeEl = document.createElement('code');
+  codeEl.textContent = filename;
+  filenameCell.appendChild(codeEl);
 
-  if (mode === 'server') {
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          repoOwner: REPO_OWNER,
-          repoName: REPO_NAME,
-          filename,
-          message: `Add/Update Trend: ${primaryKeyword}`,
-          content: finalHTML,
-          displayTitle
-        })
-      });
+  pendingPublish = { filename, finalHTML, primaryKeyword, displayTitle };
+  previewSection.classList.add('visible');
+  previewSection.scrollIntoView({ behavior: 'smooth' });
+}
 
-      const j = await res.json();
+/* =======================
+   CONFIRM & PUBLISH
+======================= */
+async function confirmAndPublish() {
+  if (!pendingPublish) return;
+  const { filename, finalHTML, primaryKeyword, displayTitle } = pendingPublish;
+  const endpoint = getEndpoint();
+  setStatus('info', 'Publication en cours...');
 
-      if (!res.ok) {
-        status.innerHTML = `<div class="error">❌ ${j.message || res.statusText}</div>`;
-        return;
-      }
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({
+        repoOwner: REPO_OWNER, repoName: REPO_NAME,
+        filename, message: `Add/Update Trend: ${primaryKeyword}`,
+        content: finalHTML, displayTitle
+      })
+    });
+    const j = await res.json();
+    if (!res.ok) { setStatus('error', j.message || res.statusText); return; }
 
-      status.innerHTML =
-        `<div class="success">✅ Publié : <a href="${j.html_url}" target="_blank">${filename}</a></div>`;
-
-    } catch (e) {
-      status.innerHTML = `<div class="error">❌ ${e.message}</div>`;
-    }
+    const pageUrl = `https://${REPO_OWNER}.github.io/${REPO_NAME}/${filename}`;
+    setStatus('success', 'Publi\u00e9 avec succ\u00e8s!', pageUrl);
+    pendingPublish = null;
+    document.getElementById('previewSection').classList.remove('visible');
+    document.getElementById('rawScript').value = '';
+    loadLibrary();
+  } catch (e) {
+    setStatus('error', 'Erreur r\u00e9seau. V\u00e9rifiez la connexion.');
   }
 }
-</script>
 
+/* =======================
+   LIBRARY
+======================= */
+async function loadLibrary() {
+  const grid = document.getElementById('libGrid');
+  const empty = document.getElementById('libEmpty');
+  const loading = document.getElementById('libLoading');
+
+  grid.innerHTML = '';
+  empty.style.display = 'none';
+  loading.style.display = '';
+  libraryCards = [];
+
+  try {
+    // Fetch repo contents + index.html in parallel for displayTitle lookup
+    const [contentsRes, indexRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents`, {
+        headers: { Accept: 'application/vnd.github.v3+json' }
+      }),
+      fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/index.html`, {
+        headers: { Accept: 'application/vnd.github.v3+json' }
+      })
+    ]);
+
+    if (!contentsRes.ok) throw new Error();
+    const files = await contentsRes.json();
+
+    // Parse index.html for displayTitle per file (with proper UTF-8 decoding)
+    const titleMap = {};
+    if (indexRes.ok) {
+      const indexJson = await indexRes.json();
+      const indexRaw = decodeBase64UTF8(indexJson.content);
+      const doc = new DOMParser().parseFromString(indexRaw, 'text/html');
+      doc.querySelectorAll('li').forEach(li => {
+        const a = li.querySelector('a');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        let text = a.textContent.trim();
+        // Strip leading emoji (from old index format)
+        text = text.replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]\s*/u, '');
+        if (href && text) titleMap[href] = text;
+      });
+    }
+
+    const htmlFiles = files.filter(f =>
+      f.name.endsWith('.html') && f.name !== 'index.html' && f.name !== 'admin.html'
+    ).sort((a, b) => a.name.localeCompare(b.name));
+
+    loading.style.display = 'none';
+
+    if (htmlFiles.length === 0) { empty.style.display = ''; return; }
+
+    document.getElementById('navCount').textContent = htmlFiles.length;
+
+    htmlFiles.forEach(f => {
+      // Prefer displayTitle from index if it contains " — " (properly formatted),
+      // otherwise use humanizeFilename for a clean result
+      const indexTitle = titleMap[f.name] || '';
+      const title = indexTitle.includes('\u2014') ? indexTitle : humanizeFilename(f.name);
+
+      const card = document.createElement('a');
+      card.className = 'lib-card';
+      card.href = `https://${REPO_OWNER}.github.io/${REPO_NAME}/${f.name}`;
+      card.target = '_blank';
+      card.setAttribute('data-name', title.toLowerCase());
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'lib-card-title';
+      titleEl.textContent = title;
+      card.appendChild(titleEl);
+
+      grid.appendChild(card);
+      libraryCards.push(card);
+    });
+
+  } catch (e) {
+    loading.style.display = 'none';
+    empty.style.display = '';
+    empty.querySelector('p').textContent = 'Erreur lors du chargement.';
+  }
+}
+
+function filterLibrary() {
+  const query = document.getElementById('libSearch').value.toLowerCase().trim();
+  let visible = 0;
+  libraryCards.forEach(card => {
+    const show = (card.getAttribute('data-name') || '').includes(query);
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  document.getElementById('libEmpty').style.display =
+    (visible === 0 && libraryCards.length > 0) ? '' : 'none';
+}
+</script>
 </body>
 </html>
